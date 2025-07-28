@@ -42,18 +42,25 @@ export const RunningSession = ({ targetBPM, onEndSession }: RunningSessionProps)
   const [isPaused, setIsPaused] = useState(false);
   const [elapsedTime, setElapsedTime] = useState(0);
   const [distance, setDistance] = useState(0);
-  const [currentPace, setCurrentPace] = useState("8:00");
   const [currentBPM, setCurrentBPM] = useState(targetBPM);
+  
+  // Calculate pace based on target BPM and simulate realistic running
+  const targetPaceMinutes = targetBPM > 0 ? (180 - targetBPM * 0.5) / 60 : 8; // Convert BPM to realistic pace
   useEffect(() => {
     let interval: NodeJS.Timeout;
     if (isRunning && !isPaused) {
       interval = setInterval(() => {
         setElapsedTime(prev => prev + 1);
-        setDistance(prev => prev + 0.003); // Simulate distance increase
         
-        // Simulate slight BPM variation
+        // Calculate distance based on target pace with slight variation
+        const paceVariation = 1 + (Math.random() - 0.5) * 0.1; // ±5% variation
+        const currentPaceSeconds = targetPaceMinutes * 60 * paceVariation;
+        const milesPerSecond = 1 / currentPaceSeconds;
+        setDistance(prev => prev + milesPerSecond);
+        
+        // Simulate slight BPM variation around target
         setCurrentBPM(prev => {
-          const variance = (Math.random() - 0.5) * 4;
+          const variance = (Math.random() - 0.5) * 6; // ±3 BPM variation
           return Math.max(120, Math.min(200, Math.round(targetBPM + variance)));
         });
       }, 1000);
@@ -77,10 +84,10 @@ export const RunningSession = ({ targetBPM, onEndSession }: RunningSessionProps)
   };
 
   const calculateCurrentPace = () => {
-    if (distance === 0) return "0:00";
-    const paceInMinutes = elapsedTime / (distance * 60);
-    const mins = Math.floor(paceInMinutes);
-    const secs = Math.round((paceInMinutes - mins) * 60);
+    if (distance === 0 || elapsedTime === 0) return "0:00";
+    const paceInSeconds = (elapsedTime / 60) / distance * 60; // seconds per mile
+    const mins = Math.floor(paceInSeconds / 60);
+    const secs = Math.round(paceInSeconds % 60);
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
