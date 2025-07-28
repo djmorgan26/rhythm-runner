@@ -1,7 +1,9 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useAuth } from "@/hooks/useAuth";
 import { PaceInput } from "@/components/PaceInput";
 import { MusicPlayer } from "@/components/MusicPlayer";
 import { PlaylistGenerator } from "@/components/PlaylistGenerator";
@@ -12,7 +14,8 @@ import {
   Users, 
   BarChart3,
   Zap,
-  Heart
+  Heart,
+  LogOut
 } from "lucide-react";
 
 interface Track {
@@ -26,12 +29,35 @@ interface Track {
 }
 
 const Index = () => {
+  const { user, loading, signOut } = useAuth();
+  const navigate = useNavigate();
   const [currentView, setCurrentView] = useState<'setup' | 'session'>('setup');
   const [targetBPM, setTargetBPM] = useState(0);
   const [currentPace, setCurrentPace] = useState("");
   const [currentTrack, setCurrentTrack] = useState<Track | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [playlist, setPlaylist] = useState<Track[]>([]);
+
+  useEffect(() => {
+    if (!loading && !user) {
+      navigate('/auth');
+    }
+  }, [user, loading, navigate]);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <Zap className="h-12 w-12 text-primary mx-auto mb-4 animate-pulse" />
+          <p className="text-muted-foreground">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return null;
+  }
 
   const handlePaceChange = (bpm: number, pace: string) => {
     setTargetBPM(bpm);
@@ -104,9 +130,12 @@ const Index = () => {
                 <p className="text-xs text-muted-foreground">BPM-Matched Running</p>
               </div>
             </div>
-            <Button variant="floating" size="sm">
-              <Users className="w-4 h-4" />
-            </Button>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-muted-foreground hidden sm:inline">{user.email}</span>
+              <Button variant="floating" size="sm" onClick={signOut}>
+                <LogOut className="w-4 h-4" />
+              </Button>
+            </div>
           </div>
         </div>
       </div>
