@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
+import { useMusicPlayer } from "@/hooks/useMusicPlayer";
 import { 
   Play, 
   Pause, 
@@ -25,26 +26,30 @@ interface Track {
 
 interface RunningSessionProps {
   targetBPM: number;
-  currentTrack: Track | null;
   onEndSession: () => void;
 }
 
-export const RunningSession = ({ targetBPM, currentTrack, onEndSession }: RunningSessionProps) => {
+export const RunningSession = ({ targetBPM, onEndSession }: RunningSessionProps) => {
+  const {
+    currentTrack,
+    isPlaying: isMusicPlaying,
+    currentTime: musicTime,
+    togglePlayPause,
+    playNext,
+    startPlaylistForBPM
+  } = useMusicPlayer();
   const [isRunning, setIsRunning] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
   const [elapsedTime, setElapsedTime] = useState(0);
   const [distance, setDistance] = useState(0);
   const [currentPace, setCurrentPace] = useState("8:00");
   const [currentBPM, setCurrentBPM] = useState(targetBPM);
-  const [trackTime, setTrackTime] = useState(0);
-
   useEffect(() => {
     let interval: NodeJS.Timeout;
     if (isRunning && !isPaused) {
       interval = setInterval(() => {
         setElapsedTime(prev => prev + 1);
         setDistance(prev => prev + 0.003); // Simulate distance increase
-        setTrackTime(prev => currentTrack ? Math.min(prev + 1, currentTrack.duration) : prev);
         
         // Simulate slight BPM variation
         setCurrentBPM(prev => {
@@ -54,7 +59,7 @@ export const RunningSession = ({ targetBPM, currentTrack, onEndSession }: Runnin
       }, 1000);
     }
     return () => clearInterval(interval);
-  }, [isRunning, isPaused, targetBPM, currentTrack]);
+  }, [isRunning, isPaused, targetBPM]);
 
   const formatTime = (seconds: number) => {
     const hours = Math.floor(seconds / 3600);
@@ -88,9 +93,11 @@ export const RunningSession = ({ targetBPM, currentTrack, onEndSession }: Runnin
 
   const syncStatus = getBPMSyncStatus();
 
-  const startRun = () => {
+  const startRun = async () => {
     setIsRunning(true);
     setIsPaused(false);
+    // Start music that matches the target BPM
+    await startPlaylistForBPM(targetBPM);
   };
 
   const pauseRun = () => {
@@ -187,12 +194,15 @@ export const RunningSession = ({ targetBPM, currentTrack, onEndSession }: Runnin
                   <div className="flex items-center gap-2 mt-1">
                     <Badge variant="outline">{currentTrack.bpm} BPM</Badge>
                     <span className="text-xs text-muted-foreground">
-                      {Math.floor(trackTime / 60)}:{(trackTime % 60).toString().padStart(2, '0')}
+                      {Math.floor(musicTime / 60)}:{Math.floor(musicTime % 60).toString().padStart(2, '0')}
                     </span>
                   </div>
                 </div>
                 <div className="flex gap-1">
-                  <Button variant="ghost" size="sm">
+                  <Button variant="ghost" size="sm" onClick={togglePlayPause}>
+                    {isMusicPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
+                  </Button>
+                  <Button variant="ghost" size="sm" onClick={playNext}>
                     <SkipForward className="w-4 h-4" />
                   </Button>
                   <Button variant="ghost" size="sm">
@@ -203,7 +213,7 @@ export const RunningSession = ({ targetBPM, currentTrack, onEndSession }: Runnin
               {currentTrack && (
                 <div className="mt-3">
                   <Progress 
-                    value={(trackTime / currentTrack.duration) * 100} 
+                    value={(musicTime / currentTrack.duration) * 100} 
                     className="h-1"
                   />
                 </div>
@@ -219,7 +229,6 @@ export const RunningSession = ({ targetBPM, currentTrack, onEndSession }: Runnin
               onClick={startRun}
               className="w-full h-16 text-lg"
               variant="hero"
-              disabled={!currentTrack}
             >
               <Play className="w-6 h-6 mr-2" />
               Start Running

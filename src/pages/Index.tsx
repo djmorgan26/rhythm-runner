@@ -109,7 +109,6 @@ const Index = () => {
     return (
       <RunningSession 
         targetBPM={targetBPM}
-        currentTrack={currentTrack}
         onEndSession={endRunningSession}
       />
     );
@@ -244,7 +243,7 @@ const Index = () => {
         </Tabs>
 
         {/* Start Running CTA */}
-        {targetBPM > 0 && currentTrack && (
+        {targetBPM > 0 && (
           <div className="fixed bottom-4 left-4 right-4 max-w-md mx-auto">
             <Button 
               onClick={startRunningSession}
