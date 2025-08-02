@@ -14,19 +14,18 @@ import {
   Activity
 } from "lucide-react";
 
-interface Track {
+interface SpotifyTrack {
   id: string;
-  title: string;
-  artist: string;
-  album: string;
-  bpm: number;
-  duration: number;
-  coverUrl?: string;
+  name: string;
+  artists: { name: string }[];
+  album: { name: string; images: { url: string }[] };
+  duration_ms: number;
+  preview_url?: string;
 }
 
 interface MusicPlayerProps {
   targetBPM: number;
-  currentTrack: Track | null;
+  currentTrack: SpotifyTrack | null;
   isPlaying: boolean;
   onPlayPause: () => void;
   onNext: () => void;
@@ -49,7 +48,7 @@ export const MusicPlayer = ({
     let interval: NodeJS.Timeout;
     if (isPlaying && currentTrack) {
       interval = setInterval(() => {
-        setCurrentTime(prev => Math.min(prev + 1, currentTrack.duration));
+        setCurrentTime(prev => Math.min(prev + 1, Math.floor(currentTrack.duration_ms / 1000)));
       }, 1000);
     }
     return () => clearInterval(interval);
@@ -61,16 +60,9 @@ export const MusicPlayer = ({
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
-  const getBPMMatchStatus = () => {
-    if (!currentTrack) return { status: 'neutral', text: 'No track' };
-    
-    const difference = Math.abs(currentTrack.bpm - targetBPM);
-    if (difference <= 3) return { status: 'perfect', text: 'Perfect sync!' };
-    if (difference <= 8) return { status: 'good', text: 'Good sync' };
-    return { status: 'poor', text: 'Sync needed' };
+  const formatDuration = (ms: number) => {
+    return formatTime(Math.floor(ms / 1000));
   };
-
-  const bpmMatch = getBPMMatchStatus();
 
   if (!currentTrack) {
     return (
@@ -88,17 +80,19 @@ export const MusicPlayer = ({
     );
   }
 
+  const trackDurationInSeconds = Math.floor(currentTrack.duration_ms / 1000);
+
   return (
     <Card className="bg-gradient-card border-border/50 shadow-elevated">
       <CardContent className="p-6">
         <div className="space-y-4">
           {/* Track Info & Cover */}
           <div className="flex gap-4">
-            <div className="w-16 h-16 bg-gradient-primary rounded-lg flex-shrink-0 animate-beat-sync">
-              {currentTrack.coverUrl ? (
+            <div className="w-16 h-16 bg-gradient-primary rounded-lg flex-shrink-0 animate-beat-sync overflow-hidden">
+              {currentTrack.album.images[0] ? (
                 <img 
-                  src={currentTrack.coverUrl} 
-                  alt={currentTrack.album}
+                  src={currentTrack.album.images[0].url} 
+                  alt={currentTrack.album.name}
                   className="w-full h-full object-cover rounded-lg"
                 />
               ) : (
@@ -109,18 +103,11 @@ export const MusicPlayer = ({
             </div>
             
             <div className="flex-1 min-w-0">
-              <h3 className="font-semibold text-lg truncate">{currentTrack.title}</h3>
-              <p className="text-muted-foreground truncate">{currentTrack.artist}</p>
+              <h3 className="font-semibold text-lg truncate">{currentTrack.name}</h3>
+              <p className="text-muted-foreground truncate">{currentTrack.artists[0]?.name}</p>
               <div className="flex items-center gap-2 mt-1">
-                <Badge 
-                  variant={bpmMatch.status === 'perfect' ? 'default' : 'outline'}
-                  className={`
-                    ${bpmMatch.status === 'perfect' && 'bg-accent text-accent-foreground animate-pulse-glow'}
-                    ${bpmMatch.status === 'good' && 'border-primary text-primary'}
-                    ${bpmMatch.status === 'poor' && 'border-destructive text-destructive'}
-                  `}
-                >
-                  {currentTrack.bpm} BPM • {bpmMatch.text}
+                <Badge variant="outline" className="border-primary/60 text-primary/80">
+                  Spotify Track
                 </Badge>
               </div>
             </div>
@@ -143,12 +130,12 @@ export const MusicPlayer = ({
           {/* Progress Bar */}
           <div className="space-y-2">
             <Progress 
-              value={(currentTime / currentTrack.duration) * 100} 
+              value={(currentTime / trackDurationInSeconds) * 100} 
               className="h-2"
             />
             <div className="flex justify-between text-xs text-muted-foreground">
               <span>{formatTime(currentTime)}</span>
-              <span>{formatTime(currentTrack.duration)}</span>
+              <span>{formatDuration(currentTrack.duration_ms)}</span>
             </div>
           </div>
 
@@ -197,17 +184,12 @@ export const MusicPlayer = ({
             <div className="bg-secondary/50 rounded-lg p-3 border border-border/50">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium">Sync Status</p>
+                  <p className="text-sm font-medium">Target BPM</p>
                   <p className="text-xs text-muted-foreground">
-                    Target: {targetBPM} BPM
+                    Running at {targetBPM} BPM
                   </p>
                 </div>
-                <div className={`
-                  w-3 h-3 rounded-full animate-pulse
-                  ${bpmMatch.status === 'perfect' && 'bg-accent'}
-                  ${bpmMatch.status === 'good' && 'bg-primary'}
-                  ${bpmMatch.status === 'poor' && 'bg-destructive'}
-                `} />
+                <div className="w-3 h-3 rounded-full animate-pulse bg-primary" />
               </div>
             </div>
           )}

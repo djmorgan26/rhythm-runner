@@ -4,6 +4,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useSpotify } from "@/hooks/useSpotify";
+import { useToast } from "@/hooks/use-toast";
 import { 
   Music, 
   Zap, 
@@ -13,31 +15,41 @@ import {
   Download,
   Shuffle,
   Sparkles,
-  Play
+  Play,
+  Loader2,
+  Settings,
+  Wand2
 } from "lucide-react";
 
-interface Track {
+interface SpotifyTrack {
   id: string;
-  title: string;
-  artist: string;
-  album: string;
-  bpm: number;
-  genre: string;
-  energy: 'low' | 'medium' | 'high';
-  duration: number;
-  coverUrl?: string;
+  name: string;
+  artists: { name: string }[];
+  album: { name: string; images: { url: string }[] };
+  duration_ms: number;
+  preview_url?: string;
 }
 
 interface PlaylistGeneratorProps {
   targetBPM: number;
-  onTrackSelect: (track: Track) => void;
-  onPlaylistCreate: (tracks: Track[]) => void;
+  isSpotifyConnected: boolean;
+  onTrackSelect: (track: SpotifyTrack) => void;
+  onPlaylistCreate: (tracks: SpotifyTrack[]) => void;
+  onCustomizeRequest: () => void;
 }
 
-export const PlaylistGenerator = ({ targetBPM, onTrackSelect, onPlaylistCreate }: PlaylistGeneratorProps) => {
+export const PlaylistGenerator = ({ 
+  targetBPM, 
+  isSpotifyConnected, 
+  onTrackSelect, 
+  onPlaylistCreate,
+  onCustomizeRequest 
+}: PlaylistGeneratorProps) => {
+  const { searchTracks, getAudioFeatures } = useSpotify();
+  const { toast } = useToast();
   const [selectedGenres, setSelectedGenres] = useState<string[]>(['pop']);
   const [energyLevel, setEnergyLevel] = useState<'low' | 'medium' | 'high'>('medium');
-  const [generatedTracks, setGeneratedTracks] = useState<Track[]>([]);
+  const [generatedTracks, setGeneratedTracks] = useState<SpotifyTrack[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
 
   const genres = [
@@ -55,69 +67,89 @@ export const PlaylistGenerator = ({ targetBPM, onTrackSelect, onPlaylistCreate }
     { id: 'high', label: 'High Energy', desc: 'Pump it up!', icon: Zap },
   ];
 
-  // Mock track generation based on BPM and preferences
+  // Generate playlist using Spotify API
   const generatePlaylist = async () => {
+    if (!isSpotifyConnected) {
+      toast({
+        title: "Spotify Required",
+        description: "Please connect your Spotify account first.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setIsGenerating(true);
     
-    // Simulate API call delay
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    
-    const mockTracks: Track[] = [
-      {
-        id: '1',
-        title: 'Thunder Runner',
-        artist: 'Electric Beats',
-        album: 'Power Pace',
-        bpm: targetBPM,
-        genre: selectedGenres[0],
-        energy: energyLevel,
-        duration: 215,
-      },
-      {
-        id: '2',
-        title: 'Pace Perfect',
-        artist: 'Rhythm Masters',
-        album: 'Beat Sync',
-        bpm: targetBPM - 2,
-        genre: selectedGenres[0],
-        energy: energyLevel,
-        duration: 198,
-      },
-      {
-        id: '3',
-        title: 'Sync Stream',
-        artist: 'Beat Runners',
-        album: 'Flow State',
-        bpm: targetBPM + 1,
-        genre: selectedGenres[0],
-        energy: energyLevel,
-        duration: 187,
-      },
-      {
-        id: '4',
-        title: 'Flow State',
-        artist: 'Tempo Track',
-        album: 'Cadence',
-        bpm: targetBPM - 1,
-        genre: selectedGenres[0],
-        energy: energyLevel,
-        duration: 203,
-      },
-      {
-        id: '5',
-        title: 'Power Stride',
-        artist: 'Cadence Co',
-        album: 'Runner\'s High',
-        bpm: targetBPM + 3,
-        genre: selectedGenres[0],
-        energy: energyLevel,
-        duration: 234,
-      },
-    ];
+    try {
+      // Create search queries based on selected genres and energy level
+      const genreQueries = selectedGenres.map(genre => {
+        let query = `genre:${genre}`;
+        
+        // Add energy-based modifiers
+        if (energyLevel === 'high') {
+          query += ' high energy dance workout';
+        } else if (energyLevel === 'low') {
+          query += ' chill mellow steady';
+        } else {
+          query += ' moderate tempo';
+        }
+        
+        return query;
+      });
 
-    setGeneratedTracks(mockTracks);
-    onPlaylistCreate(mockTracks);
-    setIsGenerating(false);
+      // Search for tracks with different genre queries
+      const allTracks: SpotifyTrack[] = [];
+      
+      for (const query of genreQueries) {
+        const tracks = await searchTracks(query, targetBPM);
+        allTracks.push(...tracks.slice(0, 8)); // Take top 8 from each genre
+      }
+
+      // Remove duplicates and get unique tracks
+      const uniqueTracks = allTracks.filter((track, index, self) => 
+        index === self.findIndex(t => t.id === track.id)
+      );
+
+      // If we have tracks, get their audio features and sort by BPM match
+      if (uniqueTracks.length > 0) {
+        const tracksWithTempo = await Promise.all(
+          uniqueTracks.slice(0, 20).map(async (track) => {
+            const features = await getAudioFeatures(track.id);
+            return { ...track, tempo: features?.tempo || 0 };
+          })
+        );
+
+        // Sort by closest BPM match and take top 10
+        const sortedTracks = tracksWithTempo
+          .filter(track => track.tempo > 0)
+          .sort((a, b) => Math.abs(a.tempo - targetBPM) - Math.abs(b.tempo - targetBPM))
+          .slice(0, 10)
+          .map(({ tempo, ...track }) => track);
+
+        setGeneratedTracks(sortedTracks);
+        onPlaylistCreate(sortedTracks);
+
+        toast({
+          title: "Playlist Generated!",
+          description: `Found ${sortedTracks.length} tracks matching your preferences.`,
+        });
+      } else {
+        toast({
+          title: "No tracks found",
+          description: "Try adjusting your genre selection or energy level.",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      console.error('Error generating playlist:', error);
+      toast({
+        title: "Generation Failed",
+        description: "Unable to generate playlist. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsGenerating(false);
+    }
   };
 
   const toggleGenre = (genreId: string) => {
@@ -136,9 +168,9 @@ export const PlaylistGenerator = ({ targetBPM, onTrackSelect, onPlaylistCreate }
     return 'fair';
   };
 
-  const formatDuration = (seconds: number) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
+  const formatDuration = (ms: number) => {
+    const mins = Math.floor(ms / 60000);
+    const secs = Math.floor((ms % 60000) / 1000);
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
@@ -200,22 +232,28 @@ export const PlaylistGenerator = ({ targetBPM, onTrackSelect, onPlaylistCreate }
 
             <Button 
               onClick={generatePlaylist}
-              disabled={!targetBPM || isGenerating || selectedGenres.length === 0}
+              disabled={!targetBPM || isGenerating || selectedGenres.length === 0 || !isSpotifyConnected}
               className="w-full"
               variant="hero"
             >
               {isGenerating ? (
                 <>
-                  <div className="animate-spin w-4 h-4 border-2 border-current border-t-transparent rounded-full" />
+                  <Loader2 className="w-4 h-4 animate-spin" />
                   Generating Perfect Mix...
                 </>
               ) : (
                 <>
-                  <Shuffle className="w-5 h-5" />
-                  Generate Playlist
+                  <Wand2 className="w-5 h-5" />
+                  Generate Spotify Playlist
                 </>
               )}
             </Button>
+            
+            {!isSpotifyConnected && (
+              <p className="text-xs text-muted-foreground text-center">
+                Connect Spotify to generate personalized playlists
+              </p>
+            )}
           </div>
         </CardContent>
       </Card>
@@ -233,48 +271,52 @@ export const PlaylistGenerator = ({ targetBPM, onTrackSelect, onPlaylistCreate }
                   </p>
                 </div>
                 <div className="flex gap-2">
-                  <Button variant="outline" size="sm">
-                    <Share2 className="w-4 h-4" />
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={onCustomizeRequest}
+                  >
+                    <Settings className="w-4 h-4" />
+                    Customize
                   </Button>
                   <Button variant="outline" size="sm">
-                    <Download className="w-4 h-4" />
+                    <Share2 className="w-4 h-4" />
                   </Button>
                 </div>
               </div>
 
               <div className="space-y-2">
                 {generatedTracks.map((track, index) => {
-                  const variance = getBPMVariance(track.bpm);
                   return (
                     <div
                       key={track.id}
                       className="flex items-center gap-3 p-3 rounded-lg bg-secondary/30 hover:bg-secondary/50 transition-colors cursor-pointer group"
                       onClick={() => onTrackSelect(track)}
                     >
-                      <div className="w-8 h-8 bg-primary/20 rounded flex items-center justify-center flex-shrink-0">
-                        <Music className="w-4 h-4 text-primary" />
+                      <div className="w-10 h-10 bg-primary/20 rounded flex-shrink-0 overflow-hidden">
+                        {track.album.images[0] ? (
+                          <img 
+                            src={track.album.images[0].url} 
+                            alt={track.album.name}
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center">
+                            <Music className="w-4 h-4 text-primary" />
+                          </div>
+                        )}
                       </div>
                       
                       <div className="flex-1 min-w-0">
                         <h4 className="font-medium truncate group-hover:text-primary transition-colors">
-                          {track.title}
+                          {track.name}
                         </h4>
-                        <p className="text-sm text-muted-foreground truncate">{track.artist}</p>
+                        <p className="text-sm text-muted-foreground truncate">{track.artists[0]?.name}</p>
                       </div>
                       
                       <div className="flex items-center gap-2">
-                        <Badge 
-                          variant={variance === 'perfect' ? 'default' : 'outline'}
-                          className={`
-                            ${variance === 'perfect' && 'bg-accent text-accent-foreground'}
-                            ${variance === 'excellent' && 'border-primary text-primary'}
-                            ${variance === 'good' && 'border-primary/60 text-primary/80'}
-                          `}
-                        >
-                          {track.bpm} BPM
-                        </Badge>
                         <span className="text-xs text-muted-foreground w-12 text-right">
-                          {formatDuration(track.duration)}
+                          {formatDuration(track.duration_ms)}
                         </span>
                       </div>
                     </div>

@@ -4,9 +4,12 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/hooks/useAuth";
+import { useSpotify } from "@/hooks/useSpotify";
 import { PaceInput } from "@/components/PaceInput";
 import { MusicPlayer } from "@/components/MusicPlayer";
 import { PlaylistGenerator } from "@/components/PlaylistGenerator";
+import { PlaylistCustomizer } from "@/components/PlaylistCustomizer";
+import { SpotifyConnection } from "@/components/SpotifyConnection";
 import { RunningSession } from "@/components/RunningSession";
 import { 
   Activity, 
@@ -15,28 +18,30 @@ import {
   BarChart3,
   Zap,
   Heart,
-  LogOut
+  LogOut,
+  Settings
 } from "lucide-react";
 
-interface Track {
+interface SpotifyTrack {
   id: string;
-  title: string;
-  artist: string;
-  album: string;
-  bpm: number;
-  duration: number;
-  coverUrl?: string;
+  name: string;
+  artists: { name: string }[];
+  album: { name: string; images: { url: string }[] };
+  duration_ms: number;
+  preview_url?: string;
 }
 
 const Index = () => {
   const { user, loading, signOut } = useAuth();
+  const { isAuthenticated: isSpotifyConnected } = useSpotify();
   const navigate = useNavigate();
-  const [currentView, setCurrentView] = useState<'setup' | 'session'>('setup');
+  const [currentView, setCurrentView] = useState<'setup' | 'session' | 'customize'>('setup');
   const [targetBPM, setTargetBPM] = useState(0);
   const [currentPace, setCurrentPace] = useState("");
-  const [currentTrack, setCurrentTrack] = useState<Track | null>(null);
+  const [currentTrack, setCurrentTrack] = useState<SpotifyTrack | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
-  const [playlist, setPlaylist] = useState<Track[]>([]);
+  const [playlist, setPlaylist] = useState<SpotifyTrack[]>([]);
+  const [spotifyConnected, setSpotifyConnected] = useState(false);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -64,13 +69,28 @@ const Index = () => {
     setCurrentPace(pace);
   };
 
-  const handleTrackSelect = (track: Track) => {
+  const handleTrackSelect = (track: SpotifyTrack) => {
     setCurrentTrack(track);
   };
 
-  const handlePlaylistCreate = (tracks: Track[]) => {
+  const handlePlaylistCreate = (tracks: SpotifyTrack[]) => {
     setPlaylist(tracks);
     if (tracks.length > 0) {
+      setCurrentTrack(tracks[0]);
+    }
+  };
+
+  const handleSpotifyConnectionChange = (connected: boolean) => {
+    setSpotifyConnected(connected);
+  };
+
+  const handleCustomizeRequest = () => {
+    setCurrentView('customize');
+  };
+
+  const handlePlaylistUpdate = (tracks: SpotifyTrack[]) => {
+    setPlaylist(tracks);
+    if (tracks.length > 0 && !currentTrack) {
       setCurrentTrack(tracks[0]);
     }
   };
@@ -105,12 +125,45 @@ const Index = () => {
     setIsPlaying(false);
   };
 
+  const backToSetup = () => {
+    setCurrentView('setup');
+  };
+
   if (currentView === 'session') {
     return (
       <RunningSession 
         targetBPM={targetBPM}
         onEndSession={endRunningSession}
       />
+    );
+  }
+
+  if (currentView === 'customize') {
+    return (
+      <div className="min-h-screen bg-gradient-background">
+        {/* Header */}
+        <div className="bg-card/50 border-b border-border/50 backdrop-blur-sm sticky top-0 z-10">
+          <div className="max-w-md mx-auto px-4 py-4">
+            <div className="flex items-center justify-between">
+              <Button variant="ghost" onClick={backToSetup}>
+                ← Back
+              </Button>
+              <h1 className="text-lg font-semibold">Customize Playlist</h1>
+              <div className="w-16" />
+            </div>
+          </div>
+        </div>
+
+        {/* Content */}
+        <div className="max-w-md mx-auto p-4">
+          <PlaylistCustomizer
+            targetBPM={targetBPM}
+            playlist={playlist}
+            onPlaylistUpdate={handlePlaylistUpdate}
+            onTrackSelect={handleTrackSelect}
+          />
+        </div>
+      </div>
     );
   }
 
@@ -163,10 +216,14 @@ const Index = () => {
 
         {/* Main Tabs */}
         <Tabs defaultValue="pace" className="w-full">
-          <TabsList className="grid w-full grid-cols-3">
+          <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="pace" className="flex items-center gap-2">
               <Activity className="w-4 h-4" />
               <span className="hidden sm:inline">Pace</span>
+            </TabsTrigger>
+            <TabsTrigger value="spotify" className="flex items-center gap-2">
+              <Settings className="w-4 h-4" />
+              <span className="hidden sm:inline">Sync</span>
             </TabsTrigger>
             <TabsTrigger value="music" className="flex items-center gap-2">
               <Music className="w-4 h-4" />
@@ -185,6 +242,12 @@ const Index = () => {
             />
           </TabsContent>
 
+          <TabsContent value="spotify" className="mt-6">
+            <SpotifyConnection 
+              onConnectionChange={handleSpotifyConnectionChange}
+            />
+          </TabsContent>
+
           <TabsContent value="music" className="mt-6 space-y-6">
             <MusicPlayer 
               targetBPM={targetBPM}
@@ -198,8 +261,10 @@ const Index = () => {
             {targetBPM > 0 && (
               <PlaylistGenerator 
                 targetBPM={targetBPM}
+                isSpotifyConnected={spotifyConnected}
                 onTrackSelect={handleTrackSelect}
                 onPlaylistCreate={handlePlaylistCreate}
+                onCustomizeRequest={handleCustomizeRequest}
               />
             )}
           </TabsContent>
