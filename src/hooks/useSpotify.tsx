@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 
 interface SpotifyTrack {
@@ -27,6 +27,39 @@ export const useSpotify = () => {
   const CLIENT_ID = "4a036982025f4178a9ad8b24c7864a96"; // Replace with your actual Spotify Client ID
   const REDIRECT_URI = `${window.location.origin}/auth/spotify/callback`;
 
+  const exchangeCodeForToken = useCallback(async (code: string) => {
+    try {
+      console.log('Exchanging code for token...', { code, redirect_uri: REDIRECT_URI });
+      
+      const { data, error } = await supabase.functions.invoke('spotify-auth', {
+        body: { code, redirect_uri: REDIRECT_URI }
+      });
+
+      console.log('Supabase function response:', { data, error });
+
+      if (error) {
+        console.error('Supabase function error:', error);
+        throw error;
+      }
+
+      if (data && data.access_token) {
+        setAccessToken(data.access_token);
+        setIsAuthenticated(true);
+        localStorage.setItem('spotify_access_token', data.access_token);
+        
+        // Clean up URL
+        window.history.replaceState({}, document.title, window.location.pathname);
+        console.log('Successfully authenticated with Spotify');
+      } else {
+        console.error('No access token received:', data);
+      }
+    } catch (error) {
+      console.error('Error exchanging code for token:', error);
+      // Show user-friendly error
+      alert('Failed to connect to Spotify. Please try again.');
+    }
+  }, [REDIRECT_URI]);
+
   useEffect(() => {
     // Check for stored access token
     const storedToken = localStorage.getItem('spotify_access_token');
@@ -42,28 +75,7 @@ export const useSpotify = () => {
     if (code && !accessToken) {
       exchangeCodeForToken(code);
     }
-  }, []);
-
-  const exchangeCodeForToken = async (code: string) => {
-    try {
-      const { data, error } = await supabase.functions.invoke('spotify-auth', {
-        body: { code, redirect_uri: REDIRECT_URI }
-      });
-
-      if (error) throw error;
-
-      if (data.access_token) {
-        setAccessToken(data.access_token);
-        setIsAuthenticated(true);
-        localStorage.setItem('spotify_access_token', data.access_token);
-        
-        // Clean up URL
-        window.history.replaceState({}, document.title, window.location.pathname);
-      }
-    } catch (error) {
-      console.error('Error exchanging code for token:', error);
-    }
-  };
+  }, [accessToken, exchangeCodeForToken]);
 
   const login = () => {
     const scopes = [

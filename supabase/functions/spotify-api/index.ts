@@ -21,10 +21,11 @@ serve(async (req) => {
     let endpoint = '';
 
     switch (action) {
-      case 'search':
+      case 'search': {
         const { query, type = 'track', limit = 20 } = data
         endpoint = `https://api.spotify.com/v1/search?q=${encodeURIComponent(query)}&type=${type}&limit=${limit}`
         break
+      }
         
       case 'play':
         endpoint = 'https://api.spotify.com/v1/me/player/play'
@@ -67,10 +68,11 @@ serve(async (req) => {
         endpoint = 'https://api.spotify.com/v1/me/player/currently-playing'
         break
 
-      case 'audio-features':
+      case 'audio-features': {
         const { track_id } = data
         endpoint = `https://api.spotify.com/v1/audio-features/${track_id}`
         break
+      }
 
       default:
         throw new Error('Invalid action')

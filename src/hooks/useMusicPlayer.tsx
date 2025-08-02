@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 
 interface Track {
   id: string;
@@ -75,7 +75,7 @@ export const useMusicPlayer = () => {
       audio.removeEventListener('ended', handleEnded);
       audio.pause();
     };
-  }, []);
+  }, [playNext]);
 
   useEffect(() => {
     if (audioRef.current) {
@@ -91,7 +91,7 @@ export const useMusicPlayer = () => {
     }
   };
 
-  const play = async () => {
+  const play = useCallback(async () => {
     if (audioRef.current && currentTrack) {
       try {
         await audioRef.current.play();
@@ -102,7 +102,7 @@ export const useMusicPlayer = () => {
         setIsPlaying(true);
       }
     }
-  };
+  }, [currentTrack]);
 
   const pause = () => {
     if (audioRef.current) {
@@ -119,7 +119,7 @@ export const useMusicPlayer = () => {
     }
   };
 
-  const playNext = () => {
+  const playNext = useCallback(() => {
     if (!currentTrack) return;
     
     const currentIndex = sampleTracks.findIndex(t => t.id === currentTrack.id);
@@ -130,7 +130,7 @@ export const useMusicPlayer = () => {
     if (isPlaying) {
       play();
     }
-  };
+  }, [currentTrack, sampleTracks, isPlaying, play]);
 
   const playPrevious = () => {
     if (!currentTrack) return;

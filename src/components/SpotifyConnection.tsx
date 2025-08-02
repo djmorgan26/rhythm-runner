@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -24,6 +24,17 @@ export const SpotifyConnection = ({ onConnectionChange }: SpotifyConnectionProps
   const [isChecking, setIsChecking] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState<'connecting' | 'connected' | 'disconnected' | 'error'>('disconnected');
 
+  const checkCurrentTrack = useCallback(async () => {
+    setIsChecking(true);
+    try {
+      await getCurrentTrack();
+    } catch (error) {
+      console.error('Error checking current track:', error);
+    } finally {
+      setIsChecking(false);
+    }
+  }, [getCurrentTrack]);
+
   useEffect(() => {
     setConnectionStatus(isAuthenticated ? 'connected' : 'disconnected');
     onConnectionChange(isAuthenticated);
@@ -33,18 +44,7 @@ export const SpotifyConnection = ({ onConnectionChange }: SpotifyConnectionProps
     if (isAuthenticated) {
       checkCurrentTrack();
     }
-  }, [isAuthenticated]);
-
-  const checkCurrentTrack = async () => {
-    setIsChecking(true);
-    try {
-      await getCurrentTrack();
-    } catch (error) {
-      console.error('Error checking current track:', error);
-    } finally {
-      setIsChecking(false);
-    }
-  };
+  }, [isAuthenticated, checkCurrentTrack]);
 
   const handleConnect = async () => {
     try {

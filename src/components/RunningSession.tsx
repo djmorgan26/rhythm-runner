@@ -66,7 +66,7 @@ export const RunningSession = ({ targetBPM, onEndSession }: RunningSessionProps)
       }, 1000);
     }
     return () => clearInterval(interval);
-  }, [isRunning, isPaused, targetBPM]);
+  }, [isRunning, isPaused, targetBPM, targetPaceMinutes]);
 
   const formatTime = (seconds: number) => {
     const hours = Math.floor(seconds / 3600);
