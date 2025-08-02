@@ -22,7 +22,9 @@ export const useSpotify = () => {
   const [currentTrack, setCurrentTrack] = useState<SpotifyTrack | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
 
-  const CLIENT_ID = "your_spotify_client_id"; // This will need to be replaced with actual client ID
+  // Note: Client ID is public and safe to expose in frontend code
+  // Get your Client ID from: https://developer.spotify.com/dashboard
+  const CLIENT_ID = "your_spotify_client_id_here"; // Replace with your actual Spotify Client ID
   const REDIRECT_URI = `${window.location.origin}/auth/spotify/callback`;
 
   useEffect(() => {
