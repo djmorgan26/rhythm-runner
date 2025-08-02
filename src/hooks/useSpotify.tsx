@@ -24,7 +24,7 @@ export const useSpotify = () => {
 
   // Note: Client ID is public and safe to expose in frontend code
   // Get your Client ID from: https://developer.spotify.com/dashboard
-  const CLIENT_ID = "your_spotify_client_id_here"; // Replace with your actual Spotify Client ID
+  const CLIENT_ID = "4a036982025f4178a9ad8b24c7864a96"; // Replace with your actual Spotify Client ID
   const REDIRECT_URI = `${window.location.origin}/auth/spotify/callback`;
 
   useEffect(() => {
